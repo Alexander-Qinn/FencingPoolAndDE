@@ -6,13 +6,13 @@
     <title>Fencing Pool + DE Builder</title>
     <style>
       :root {
-        --bg: #0f1115;
-        --panel: #171a21;
-        --muted: #8f9bb3;
-        --text: #eef2ff;
-        --accent: #5b8cff;
-        --border: #2a2f3a;
-        --good: #26c281;
+        --bg: #f3f5fa;
+        --panel: #ffffff;
+        --muted: #5c667a;
+        --text: #1b1f2a;
+        --accent: #2d5be3;
+        --border: #cdd3df;
+        --good: #1c9f67;
       }
       * {
         box-sizing: border-box;
@@ -24,8 +24,9 @@
         font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
       }
       header {
-        padding: 20px 16px 8px;
-        border-bottom: 1px solid var(--border);
+        padding: 20px 16px 10px;
+        border-bottom: 2px solid var(--border);
+        background: #f9faff;
       }
       h1 {
         margin: 0 0 6px;
@@ -65,7 +66,7 @@
         width: 100%;
         border-radius: 8px;
         border: 1px solid var(--border);
-        background: #0c0f14;
+        background: #ffffff;
         color: var(--text);
         padding: 8px 10px;
         font-size: 14px;
@@ -102,7 +103,7 @@
         font-size: 12px;
       }
       th {
-        background: #10141b;
+        background: #f2f4f8;
         font-weight: 600;
         color: var(--muted);
       }
@@ -119,8 +120,8 @@
         margin-bottom: 8px;
       }
       .badge {
-        background: #1b2240;
-        color: #bcd1ff;
+        background: #eef2ff;
+        color: #2d3a68;
         font-size: 12px;
         padding: 2px 8px;
         border-radius: 999px;
@@ -155,6 +156,81 @@
       }
       .muted {
         color: var(--muted);
+      }
+      .sheet-header {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 10px;
+      }
+      .sheet-field label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .sheet-field input {
+        border-radius: 0;
+        border: none;
+        border-bottom: 2px solid var(--border);
+        padding: 6px 2px;
+        background: transparent;
+      }
+      .sheet-table th,
+      .sheet-table td {
+        font-size: 11px;
+        padding: 4px;
+      }
+      .sheet-table input {
+        width: 44px;
+        border-radius: 6px;
+        padding: 4px 6px;
+        font-size: 12px;
+        text-align: center;
+      }
+      .sheet-table .diag {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .sheet-subhead {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 10px;
+        margin-bottom: 8px;
+      }
+      .de-rounds {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+      }
+      .de-round {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px;
+        background: #fbfcff;
+      }
+      .de-round h4 {
+        margin: 0 0 8px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .de-match {
+        display: grid;
+        grid-template-columns: 1fr 54px 54px 1fr;
+        gap: 6px;
+        align-items: center;
+        margin-bottom: 6px;
+      }
+      .de-match input {
+        text-align: center;
+      }
+      .de-seed {
+        color: var(--muted);
+        font-size: 11px;
+        margin-right: 4px;
+      }
+      .de-winner {
+        font-weight: 600;
+        color: var(--good);
       }
     </style>
   </head>
@@ -331,9 +407,18 @@
         return DEFAULT_BOUT_ORDER[size] || [];
       };
 
-      const getScoreKey = (poolId, boutIndex, side) => `${poolId}-${boutIndex}-${side}`;
+      const getScoreKey = (poolId, rowIndex, colIndex) =>
+        `${poolId}-${rowIndex}-${colIndex}`;
 
-      const computePoolStats = (pool, bouts, scores) => {
+      const readScore = (value) => {
+        if (value === null || value === undefined) return null;
+        const str = String(value).trim();
+        if (!str) return null;
+        const parsed = Number(str);
+        return Number.isFinite(parsed) ? parsed : null;
+      };
+
+      const computePoolStats = (pool, scores) => {
         const stats = pool.fencers.map((fencer, idx) => ({
           ...fencer,
           index: idx + 1,
@@ -344,23 +429,24 @@
         }));
         const byIndex = Object.fromEntries(stats.map((f) => [f.index, f]));
 
-        bouts.forEach((pair, boutIndex) => {
-          const [aIdx, bIdx] = pair;
-          const aScore = Number(scores[getScoreKey(pool.id, boutIndex, "a")]);
-          const bScore = Number(scores[getScoreKey(pool.id, boutIndex, "b")]);
-          if (!Number.isFinite(aScore) || !Number.isFinite(bScore)) return;
-          const a = byIndex[aIdx];
-          const b = byIndex[bIdx];
-          if (!a || !b) return;
-          a.ts += aScore;
-          a.tr += bScore;
-          b.ts += bScore;
-          b.tr += aScore;
-          a.bouts += 1;
-          b.bouts += 1;
-          if (aScore > bScore) a.wins += 1;
-          if (bScore > aScore) b.wins += 1;
-        });
+        for (let i = 1; i <= pool.fencers.length; i += 1) {
+          for (let j = i + 1; j <= pool.fencers.length; j += 1) {
+            const aScore = readScore(scores[getScoreKey(pool.id, i, j)]);
+            const bScore = readScore(scores[getScoreKey(pool.id, j, i)]);
+            if (aScore === null || bScore === null) continue;
+            const a = byIndex[i];
+            const b = byIndex[j];
+            if (!a || !b) continue;
+            a.ts += aScore;
+            a.tr += bScore;
+            b.ts += bScore;
+            b.tr += aScore;
+            a.bouts += 1;
+            b.bouts += 1;
+            if (aScore > bScore) a.wins += 1;
+            if (bScore > aScore) b.wins += 1;
+          }
+        }
 
         return stats.map((f) => ({
           ...f,
@@ -383,21 +469,67 @@
         }));
       };
 
-      const buildDeMatchups = (seedings) => {
+      const getMatchKey = (matchId, side) => `${matchId}-${side}`;
+
+      const getWinner = (match, results) => {
+        const aScore = readScore(results[getMatchKey(match.id, "a")]);
+        const bScore = readScore(results[getMatchKey(match.id, "b")]);
+        if (!match.slotA && !match.slotB) return null;
+        if (match.slotA && !match.slotB) return match.slotA;
+        if (!match.slotA && match.slotB) return match.slotB;
+        if (aScore === null || bScore === null) return null;
+        if (aScore > bScore) return match.slotA;
+        if (bScore > aScore) return match.slotB;
+        return null;
+      };
+
+      const buildDeRounds = (seedings, results) => {
         const size = nextPowerOfTwo(seedings.length);
         const getSeed = (seed) => seedings.find((f) => f.deSeed === seed);
-        const matchups = [];
+        const firstMatches = [];
         for (let seed = 1; seed <= size / 2; seed += 1) {
           const opponentSeed = size + 1 - seed;
-          matchups.push({
-            seed,
-            opponentSeed,
-            a: getSeed(seed),
-            b: getSeed(opponentSeed),
-            size,
+          const a = getSeed(seed);
+          const b = getSeed(opponentSeed);
+          firstMatches.push({
+            id: `r${size}-m${seed}`,
+            roundSize: size,
+            slotA: a ? { name: a.name, seed: a.deSeed } : null,
+            slotB: b ? { name: b.name, seed: b.deSeed } : null,
           });
         }
-        return { size, matchups };
+        const rounds = [{ roundSize: size, matches: firstMatches }];
+        let currentSize = size;
+        while (currentSize > 2) {
+          const prev = rounds[rounds.length - 1];
+          const nextSize = currentSize / 2;
+          const nextMatches = [];
+          for (let i = 0; i < prev.matches.length; i += 2) {
+            const leftMatch = prev.matches[i];
+            const rightMatch = prev.matches[i + 1];
+            const winnerA = getWinner(leftMatch, results);
+            const winnerB = getWinner(rightMatch, results);
+            nextMatches.push({
+              id: `r${nextSize}-m${i / 2 + 1}`,
+              roundSize: nextSize,
+              slotA: winnerA
+                ? winnerA
+                : {
+                    name: `Winner R${leftMatch.roundSize} M${i + 1}`,
+                    seed: null,
+                  },
+              slotB: winnerB
+                ? winnerB
+                : {
+                    name: `Winner R${rightMatch.roundSize} M${i + 2}`,
+                    seed: null,
+                  },
+            });
+          }
+          rounds.push({ roundSize: nextSize, matches: nextMatches });
+          currentSize = nextSize;
+        }
+        return rounds;
       };
 
       const App = () => {
@@ -407,6 +539,15 @@
         const [useCustomOrder, setUseCustomOrder] = useState(false);
         const [customOrderText, setCustomOrderText] = useState("");
         const [scores, setScores] = useState({});
+        const [sheetInfo, setSheetInfo] = useState({
+          tournament: "",
+          competition: "",
+          round: "",
+          poolLabel: "",
+          strip: "",
+          referee: "",
+        });
+        const [deResults, setDeResults] = useState({});
 
         const fencers = useMemo(() => parseFencers(fencerText), [fencerText]);
         const pools = useMemo(() => snakePools(fencers, poolSize), [fencers, poolSize]);
@@ -418,24 +559,30 @@
         useEffect(() => {
           const nextScores = {};
           pools.forEach((pool) => {
-            const bouts = buildBoutOrder(pool.fencers.length, customOrder);
-            bouts.forEach((_, boutIndex) => {
-              nextScores[getScoreKey(pool.id, boutIndex, "a")] = "";
-              nextScores[getScoreKey(pool.id, boutIndex, "b")] = "";
-            });
+            for (let i = 1; i <= pool.fencers.length; i += 1) {
+              for (let j = 1; j <= pool.fencers.length; j += 1) {
+                if (i === j) continue;
+                nextScores[getScoreKey(pool.id, i, j)] = "";
+              }
+            }
           });
           setScores((prev) => ({ ...nextScores, ...prev }));
-        }, [pools, customOrder]);
+        }, [pools]);
+
 
         const poolSummaries = pools.map((pool) => {
           const bouts = buildBoutOrder(pool.fencers.length, customOrder);
-          const stats = computePoolStats(pool, bouts, scores);
+          const stats = computePoolStats(pool, scores);
           return { pool, bouts, stats };
         });
 
         const allStats = poolSummaries.flatMap((summary) => summary.stats);
         const seedings = buildDeSeedings(allStats, promotionPct);
-        const deTableau = buildDeMatchups(seedings);
+        const deRounds = buildDeRounds(seedings, deResults);
+
+        useEffect(() => {
+          setDeResults({});
+        }, [seedings.length]);
 
         const customOrderExpected =
           poolSize && (poolSize * (poolSize - 1)) / 2;
@@ -530,13 +677,83 @@
                     <span className="badge">{pool.fencers.length} fencers</span>
                   </div>
 
+                  <div className="sheet-header" style={{ marginBottom: "10px" }}>
+                    <div className="sheet-field">
+                      <label>Tournament</label>
+                      <input
+                        value={sheetInfo.tournament}
+                        onChange={(e) =>
+                          setSheetInfo((prev) => ({
+                            ...prev,
+                            tournament: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="sheet-field">
+                      <label>Competition</label>
+                      <input
+                        value={sheetInfo.competition}
+                        onChange={(e) =>
+                          setSheetInfo((prev) => ({
+                            ...prev,
+                            competition: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="sheet-field">
+                      <label>Round</label>
+                      <input
+                        value={sheetInfo.round}
+                        onChange={(e) =>
+                          setSheetInfo((prev) => ({
+                            ...prev,
+                            round: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="sheet-field">
+                      <label>Pool</label>
+                      <input value={pool.label} readOnly />
+                    </div>
+                    <div className="sheet-field">
+                      <label>Strip</label>
+                      <input
+                        value={sheetInfo.strip}
+                        onChange={(e) =>
+                          setSheetInfo((prev) => ({
+                            ...prev,
+                            strip: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="sheet-field">
+                      <label>Referee</label>
+                      <input
+                        value={sheetInfo.referee}
+                        onChange={(e) =>
+                          setSheetInfo((prev) => ({
+                            ...prev,
+                            referee: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+
                   <div className="grid-wrap">
-                    <table>
+                    <table className="sheet-table">
                       <thead>
                         <tr>
-                          <th>#</th>
-                          <th>Name</th>
                           <th>Club</th>
+                          <th>Name</th>
+                          <th>#</th>
+                          {pool.fencers.map((_, idx) => (
+                            <th key={`head-${pool.id}-${idx}`}>{idx + 1}</th>
+                          ))}
                           <th>V</th>
                           <th>TS</th>
                           <th>TR</th>
@@ -547,13 +764,44 @@
                       <tbody>
                         {stats.map((fencer) => (
                           <tr key={fencer.id}>
-                            <td>{fencer.index}</td>
-                            <td style={{ textAlign: "left" }}>
-                              {fencer.name}
-                            </td>
                             <td style={{ textAlign: "left" }}>
                               {fencer.club}
                             </td>
+                            <td style={{ textAlign: "left" }}>
+                              {fencer.name}
+                            </td>
+                            <td>{fencer.index}</td>
+                            {pool.fencers.map((_, colIdx) => {
+                              const rowIndex = fencer.index;
+                              const colIndex = colIdx + 1;
+                              if (rowIndex === colIndex) {
+                                return (
+                                  <td key={`${fencer.id}-d-${colIndex}`}>
+                                    <span className="diag">—</span>
+                                  </td>
+                                );
+                              }
+                              const scoreKey = getScoreKey(
+                                pool.id,
+                                rowIndex,
+                                colIndex
+                              );
+                              return (
+                                <td key={`${fencer.id}-${colIndex}`}>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={scores[scoreKey]}
+                                    onChange={(e) =>
+                                      setScores((prev) => ({
+                                        ...prev,
+                                        [scoreKey]: e.target.value,
+                                      }))
+                                    }
+                                  />
+                                </td>
+                              );
+                            })}
                             <td>{fencer.wins}</td>
                             <td>{fencer.ts}</td>
                             <td>{fencer.tr}</td>
@@ -564,6 +812,11 @@
                       </tbody>
                     </table>
                   </div>
+
+                  <p className="hint">
+                    Enter scores in the row/column grid. A bout is counted once
+                    both fencers have scores filled.
+                  </p>
 
                   <h3 style={{ margin: "12px 0 6px", fontSize: "14px" }}>
                     Bout Order
@@ -579,32 +832,6 @@
                           {" vs "}
                           {bIdx} {bFencer?.name || ""}
                         </span>
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder="A"
-                          value={scores[getScoreKey(pool.id, boutIndex, "a")]}
-                          onChange={(e) =>
-                            setScores((prev) => ({
-                              ...prev,
-                              [getScoreKey(pool.id, boutIndex, "a")]:
-                                e.target.value,
-                            }))
-                          }
-                        />
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder="B"
-                          value={scores[getScoreKey(pool.id, boutIndex, "b")]}
-                          onChange={(e) =>
-                            setScores((prev) => ({
-                              ...prev,
-                              [getScoreKey(pool.id, boutIndex, "b")]:
-                                e.target.value,
-                            }))
-                          }
-                        />
                       </div>
                     );
                   })}
@@ -613,7 +840,7 @@
             </section>
 
             <section className="panel">
-              <h2>DE Seeding + First Round</h2>
+              <h2>DE Seeding + Tableau</h2>
               {seedings.length === 0 ? (
                 <p className="muted">Enter pool results to seed DEs.</p>
               ) : (
@@ -648,38 +875,83 @@
                   </div>
 
                   <p className="hint">
-                    DE opponent formula: (tableau size + 1) - your seed.
+                    Enter DE scores per match. Winners advance automatically to
+                    the next round.
                   </p>
 
-                  <div className="grid-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Tableau</th>
-                          <th>Seed</th>
-                          <th>Opponent Seed</th>
-                          <th>Match</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {deTableau.matchups.map((match) => (
-                          <tr key={`${match.seed}-${match.opponentSeed}`}>
-                            <td>R{deTableau.size}</td>
-                            <td>{match.seed}</td>
-                            <td>{match.opponentSeed}</td>
-                            <td style={{ textAlign: "left" }}>
-                              {match.a
-                                ? `${match.a.name}`
-                                : "BYE"}{" "}
-                              vs{" "}
-                              {match.b
-                                ? `${match.b.name}`
-                                : "BYE"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="de-rounds">
+                    {deRounds.map((round, roundIndex) => (
+                      <div key={`round-${round.roundSize}`} className="de-round">
+                        <h4>Round of {round.roundSize}</h4>
+                        {round.matches.map((match, matchIndex) => {
+                          const winner = getWinner(match, deResults);
+                          return (
+                            <div key={match.id} className="de-match">
+                              <div>
+                                <span className="de-seed">
+                                  M{matchIndex + 1}{" "}
+                                  {match.slotA?.seed
+                                    ? `#${match.slotA.seed}`
+                                    : "—"}
+                                </span>
+                                <span
+                                  className={
+                                    winner?.name === match.slotA?.name
+                                      ? "de-winner"
+                                      : ""
+                                  }
+                                >
+                                  {match.slotA?.name || "BYE"}
+                                </span>
+                              </div>
+                              <input
+                                type="number"
+                                min="0"
+                                placeholder="A"
+                                value={deResults[getMatchKey(match.id, "a")]}
+                                onChange={(e) =>
+                                  setDeResults((prev) => ({
+                                    ...prev,
+                                    [getMatchKey(match.id, "a")]:
+                                      e.target.value,
+                                  }))
+                                }
+                              />
+                              <input
+                                type="number"
+                                min="0"
+                                placeholder="B"
+                                value={deResults[getMatchKey(match.id, "b")]}
+                                onChange={(e) =>
+                                  setDeResults((prev) => ({
+                                    ...prev,
+                                    [getMatchKey(match.id, "b")]:
+                                      e.target.value,
+                                  }))
+                                }
+                              />
+
+                              <div>
+                                <span className="de-seed">
+                                  {match.slotB?.seed
+                                    ? `#${match.slotB.seed}`
+                                    : "—"}
+                                </span>
+                                <span
+                                  className={
+                                    winner?.name === match.slotB?.name
+                                      ? "de-winner"
+                                      : ""
+                                  }
+                                >
+                                  {match.slotB?.name || "BYE"}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
                   </div>
                 </>
               )}
